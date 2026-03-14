@@ -1,5 +1,12 @@
 # 🌌 NOVA
+
+🌍 **Languages:**  
+🇬🇧 [English](README.md) | 🇷🇺 [Русский](README.ru.md)
+
+---
+
 ### Neural Operational Voice Assistant
+
 
 **NOVA** is a lightweight, modular voice assistant designed for Linux power users.  
 It provides a natural voice interface to control your system, automate workflows, and interact with your environment — all while prioritizing **local execution, privacy, and extensibility**.
