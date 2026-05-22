@@ -388,6 +388,7 @@ class NovaApp(App):
         margin: 1 2;
         padding: 1 2;
         height: auto;
+        width: 1fr;
     }
     MessageBubble.user-bubble {
         border-left: tall green;
@@ -399,6 +400,7 @@ class NovaApp(App):
     }
     .msg-text {
         color: $text;
+        width: 100%;
     }
     """
 
