@@ -3,27 +3,27 @@ import json
 import datetime
 
 from components import llm, textCleaner, tts, stt, mqtt
-from config import *
+from config import SYSTEM_PROMTP
 
-llm = llm.LLM()
-textCleaner = textCleaner.TextCleaner()
-tts = tts.TTS()
-stt = stt.STT()
-mqtt = mqtt.MQTT()
+# Инициализация компонентов
+llm_engine = llm.LLM()
+cleaner = textCleaner.TextCleaner()
+tts_engine = tts.TTS()
+stt_engine = stt.STT()
+mqtt_client = mqtt.MQTT()
 
-history = []
-history.append({"role": "system", "content": SYSTEM_PROMTP})
+history = [{"role": "system", "content": SYSTEM_PROMTP}]
 
 def turnOnTableLight(state: bool):
     topic = "nanasaki/desk-light"
     payload = json.dumps({"state": state})
-    mqtt.mqtt_client.publish(topic, payload)
+    mqtt_client.mqtt_client.publish(topic, payload)
     return f"свет на столе сейчас в состоянии {state}."
 
 def turnBigLight(state: bool):
     topic = "nanasaki/big-light"
     payload = json.dumps({"state": state})
-    mqtt.mqtt_client.publish(topic, payload)
+    mqtt_client.mqtt_client.publish(topic, payload)
     return f"большой свет сейчас в состоянии {state}."
 
 def get_time():
@@ -65,9 +65,9 @@ async def handleAnswerLLMandTTS(tool_res=None):
     if tool_res is not None:
         message={"role": "system", "content": f"Function return: '{tool_res}'"}
     else:
-        user_input = await asyncio.to_thread(stt.listen, tts)#type: ignore
+        user_input = await asyncio.to_thread(stt_engine.listen, tts_engine)#type: ignore
         message={"role": "user", "content": user_input}
-        tts.abort()#type: ignore
+        tts_engine.abort()#type: ignore
 
         print("LLM answer: ")
 
@@ -79,7 +79,7 @@ async def handleAnswerLLMandTTS(tool_res=None):
     tts_buffer = ''
 
     # Получаем стрим от llm
-    stream = llm.llmGenerateStream(history) #type: ignore   
+    stream = llm_engine.llmGenerateStream(history) #type: ignore   
 
     # Флаг проверки размышлений модели
     is_thinking = False
@@ -133,11 +133,11 @@ async def handleAnswerLLMandTTS(tool_res=None):
         tts_buffer += text_chunk
 
         # Проверка на конец предложения. Если конец то озвучиваем 
-        if textCleaner.is_sentence_end(tts_buffer):#type:ignore
-            sentence = textCleaner.clean_text(tts_buffer) #type:ignore
+        if cleaner.is_sentence_end(tts_buffer):#type:ignore
+            sentence = cleaner.clean_text(tts_buffer) #type:ignore
 
             if sentence:
-                asyncio.create_task(asyncio.to_thread(tts.speak, sentence))#type: ignore
+                asyncio.create_task(asyncio.to_thread(tts_engine.speak, sentence))#type: ignore
                 await asyncio.sleep(0.05)
 
             tts_buffer = ""
