@@ -246,6 +246,11 @@ class MainScreen(Screen):
         self._update_chat_ui(data)
 
     def _update_chat_ui(self, data: dict):
+        # Если мы сейчас записываем наш собственный голос, то игнорируем любые 
+        # запоздалые текстовые пакеты от старого ответа сервера!
+        if self.is_recording:
+            return
+
         t = data.get("type")
         if t == "info":
             bubble = MessageBubble("System", f"[yellow]Info: {data.get('message')}[/yellow]")
