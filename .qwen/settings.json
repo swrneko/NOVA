@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir *)",
+      "Bash(conda *)",
+      "Bash(cat)",
+      "Bash(для *)",
+      "Bash(основные *)",
+      "Bash(- *)",
+      "Bash(eof)"
+    ]
+  },
+  "$version": 3
+}
