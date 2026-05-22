@@ -115,7 +115,6 @@ async def websocket_chat(websocket: WebSocket, db: Session = Depends(get_db)):
                 # Благодаря этому, основной цикл while True свободен и может мгновенно принять
                 # сигнал 'abort' или новые байты, пока текущая задача обрабатывается!
                 async def handle_request():
-                    user_msg = None
                     try:
                         print(f"[WS] Начало обработки аудио: {len(audio_bytes)} байт")
                         # Переводим звук в текст
@@ -125,10 +124,8 @@ async def websocket_chat(websocket: WebSocket, db: Session = Depends(get_db)):
                             await websocket.send_json({"type": "info", "message": "Голос не распознан"})
                             return
                             
-                        # Сохраняем в БД и добавляем в контекст
-                        user_msg = Message(user_id=user.id, role="user", content=user_text)
-                        db.add(user_msg)
-                        db.commit()
+                        # НЕ сохраняем в БД сразу, чтобы избежать блокировок SQLite при отмене (CancelledError)
+                        # Мы сохраним и вопрос, и ответ одной транзакцией при успешном завершении.
                         history.append({"role": "user", "content": user_text})
                         
                         # Оповещаем UI
@@ -138,16 +135,9 @@ async def websocket_chat(websocket: WebSocket, db: Session = Depends(get_db)):
                         await process_llm_and_tts(websocket, history, user, db)
                     except asyncio.CancelledError:
                         print("[WS] Задача генерации была успешно прервана.")
-                        # Очищаем историю контекста от неоконченного запроса!
-                        if user_msg:
-                            if history and history[-1]["role"] == "user":
-                                history.pop()
-                            # Удаляем из БД, чтобы не загрязнять историю
-                            try:
-                                db.delete(user_msg)
-                                db.commit()
-                            except Exception as e:
-                                print(f"Error deleting incomplete message from DB: {e}")
+                        # Очищаем историю контекста в памяти от неоконченного запроса
+                        if history and history[-1]["role"] == "user":
+                            history.pop()
                     except Exception as e:
                         print(f"Error in handle_request task: {e}")
 
@@ -223,9 +213,21 @@ async def process_llm_and_tts(websocket: WebSocket, history: list, user: User, d
 
     # Сохраняем финальный ответ в БД
     if tool_res is None:
-        new_msg = Message(user_id=user.id, role="assistant", content=full_response.strip())
-        db.add(new_msg)
-        db.commit()
+        try:
+            # Находим последний текст вопроса пользователя в памяти
+            user_text = next(msg["content"] for msg in reversed(history) if msg["role"] == "user")
+            
+            # Сохраняем и вопрос, и ответ одной чистой транзакцией
+            user_msg = Message(user_id=user.id, role="user", content=user_text)
+            assistant_msg = Message(user_id=user.id, role="assistant", content=full_response.strip())
+            
+            db.add(user_msg)
+            db.add(assistant_msg)
+            db.commit()
+        except Exception as e:
+            print(f"Error saving chat history to DB: {e}")
+            db.rollback()
+            
         history.append({"role": "assistant", "content": full_response.strip()})
     else:
         history.pop() # Удаляем системное сообщение от функции
