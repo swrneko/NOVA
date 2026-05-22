@@ -124,36 +124,45 @@ class AudioIO:
             self.play_queue.put(audio_np)
 
     def abort_playback(self):
-        """Очищает очередь воспроизведения для мгновенного затихания."""
+        """Очищает очередь воспроизведения и мгновенно останавливает текущий буфер."""
         while not self.play_queue.empty():
             try:
                 self.play_queue.get_nowait()
             except queue.Empty:
                 break
+        
+        # Мгновенно тушим воспроизведение текущего чанка
+        if hasattr(self, 'play_stream') and self.play_stream:
+            try:
+                self.play_stream.stop()
+                self.play_stream.start() # Перезапускаем для будущих фраз
+            except Exception as e:
+                pass
 
     def _play_loop(self):
         """Фоновый поток, который непрерывно читает очередь и проигрывает звук."""
         device = self.output_device
         try:
-            stream = sd.OutputStream(device=device, samplerate=SPK_SAMPLE_RATE, channels=SPK_CHANNELS, dtype=SPK_DTYPE)
+            self.play_stream = sd.OutputStream(device=device, samplerate=SPK_SAMPLE_RATE, channels=SPK_CHANNELS, dtype=SPK_DTYPE)
         except Exception as e:
             print(f"Failed to open selected output device {device}: {e}. Falling back to default output.")
             try:
-                stream = sd.OutputStream(device=None, samplerate=SPK_SAMPLE_RATE, channels=SPK_CHANNELS, dtype=SPK_DTYPE)
+                self.play_stream = sd.OutputStream(device=None, samplerate=SPK_SAMPLE_RATE, channels=SPK_CHANNELS, dtype=SPK_DTYPE)
             except Exception as e2:
                 print(f"Failed to open default output stream: {e2}")
                 return
 
-        with stream:
+        with self.play_stream:
             while self.is_playing:
                 try:
                     # Блокируемся, пока не придут новые байты
                     audio_np = self.play_queue.get(timeout=0.5)
-                    stream.write(audio_np)
+                    self.play_stream.write(audio_np)
                 except queue.Empty:
                     continue
                 except Exception as e:
-                    print(f"Playback error: {e}")
+                    # Ошибка нормальна, если поток был принудительно остановлен через stop()
+                    pass
 
     def stop(self):
         """Очистка ресурсов при выходе."""
