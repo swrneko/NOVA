@@ -88,11 +88,13 @@ async def websocket_chat(websocket: WebSocket, db: Session = Depends(get_db)):
         while True:
             # Ждем любое сообщение от клиента (текст или бинарные данные)
             message = await websocket.receive()
+            print(f"[WS DEBUG] Received message: {list(message.keys())}")
             
             # 1. Если пришел сигнал отмены (abort) в текстовом виде:
             if "text" in message:
                 try:
                     data = json.loads(message["text"])
+                    print(f"[WS DEBUG] Received text data: {data}")
                     if data.get("type") == "abort":
                         if active_task and not active_task.done():
                             active_task.cancel()
@@ -191,6 +193,9 @@ async def process_llm_and_tts(websocket: WebSocket, history: list, user: User, d
         
         # Отправляем кусок текста клиенту для UI (чтобы печаталось в реальном времени)
         await websocket.send_json({"type": "text_chunk", "text": text_chunk})
+        # Принудительно уступаем управление Event Loop'у на 1мс, чтобы 
+        # сервер успел принять новые сообщения (например, сигнал 'abort') по WebSocket!
+        await asyncio.sleep(0.001)
 
         # Если конец предложения -> синтезируем речь и отправляем байты!
         if cleaner.is_sentence_end(tts_buffer):
@@ -201,6 +206,7 @@ async def process_llm_and_tts(websocket: WebSocket, history: list, user: User, d
                 for audio_chunk_bytes in audio_gen:
                     # Отправляем сырые байты по вебсокету
                     await websocket.send_bytes(audio_chunk_bytes)
+                    await asyncio.sleep(0.001) # Уступаем управление
                 
             tts_buffer = ""
 
