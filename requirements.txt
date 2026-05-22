@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+sqlalchemy
+passlib[bcrypt]
+pyjwt
+pyotp
+textual
+httpx
+websockets
+# AI deps (already installed, but listed for completeness)
+piper-tts
+sounddevice
+numpy
+faster-whisper
+silero-vad
+llama-cpp-python
+paho-mqtt

@@ -1,0 +1,20 @@
+from fastapi import FastAPI
+from backend.api.routes import router as api_router
+from backend.database.db import init_db
+
+# Инициализируем БД
+init_db()
+
+app = FastAPI(title="NOVA API")
+
+# Подключаем роуты из api/routes.py
+app.include_router(api_router, prefix="/api")
+
+@app.get("/")
+def read_root():
+    return {"message": "NOVA Backend is running. Use TUI Client to connect."}
+
+# Точка входа для запуска (для удобства)
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("backend.server:app", host="0.0.0.0", port=8000, reload=True)
