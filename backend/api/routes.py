@@ -40,11 +40,16 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     
+    # Генерируем QR-код
+    uri = auth_utils.get_totp_uri(totp_secret, user.username)
+    qr_ascii = auth_utils.generate_qr_ascii(uri)
+    
     return {
         "message": "User created successfully",
         "username": new_user.username,
-        "totp_secret": totp_secret,  # Возвращаем секрет, чтобы показать в TUI для добавления в Aegis
-        "instruction": "Add this secret to Aegis/Google Authenticator manually"
+        "totp_secret": totp_secret,
+        "qr_ascii": qr_ascii,
+        "instruction": "Scan the QR code with Aegis/Google Authenticator"
     }
 
 @router.post("/login")

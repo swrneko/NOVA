@@ -19,4 +19,7 @@ def read_root():
 # Точка входа для запуска (для удобства)
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("backend.server:app", host="0.0.0.0", port=8000, reload=True)
+    # ОТКЛЮЧЕНО reload=True. 
+    # С тяжелыми моделями (Qwen) reload вызывает двойную загрузку в VRAM, 
+    # из-за чего возникает ошибка OOM (Out Of Memory) при старте воркера.
+    uvicorn.run("backend.server:app", host="0.0.0.0", port=8000, reload=False)

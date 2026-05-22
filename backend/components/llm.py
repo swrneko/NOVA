@@ -21,8 +21,13 @@ class LLM():
         except Exception as e:
             print("MODEL NOT LOADED!")
             print(f"Error when loading llm model:{e}")
+            self.llm = None
         
     def llmGenerateStream(self, history: list):
+        if not self.llm:
+            yield {"choices": [{"delta": {"content": "Ошибка: Модель LLM не загружена."}}]}
+            return
+
         stream = self.llm.create_chat_completion(
             messages=history,
             stream=True
