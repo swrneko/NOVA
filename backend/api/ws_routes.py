@@ -115,6 +115,7 @@ async def websocket_chat(websocket: WebSocket, db: Session = Depends(get_db)):
                 # Благодаря этому, основной цикл while True свободен и может мгновенно принять
                 # сигнал 'abort' или новые байты, пока текущая задача обрабатывается!
                 async def handle_request():
+                    user_msg = None
                     try:
                         print(f"[WS] Начало обработки аудио: {len(audio_bytes)} байт")
                         # Переводим звук в текст
@@ -125,8 +126,8 @@ async def websocket_chat(websocket: WebSocket, db: Session = Depends(get_db)):
                             return
                             
                         # Сохраняем в БД и добавляем в контекст
-                        new_msg = Message(user_id=user.id, role="user", content=user_text)
-                        db.add(new_msg)
+                        user_msg = Message(user_id=user.id, role="user", content=user_text)
+                        db.add(user_msg)
                         db.commit()
                         history.append({"role": "user", "content": user_text})
                         
@@ -137,6 +138,16 @@ async def websocket_chat(websocket: WebSocket, db: Session = Depends(get_db)):
                         await process_llm_and_tts(websocket, history, user, db)
                     except asyncio.CancelledError:
                         print("[WS] Задача генерации была успешно прервана.")
+                        # Очищаем историю контекста от неоконченного запроса!
+                        if user_msg:
+                            if history and history[-1]["role"] == "user":
+                                history.pop()
+                            # Удаляем из БД, чтобы не загрязнять историю
+                            try:
+                                db.delete(user_msg)
+                                db.commit()
+                            except Exception as e:
+                                print(f"Error deleting incomplete message from DB: {e}")
                     except Exception as e:
                         print(f"Error in handle_request task: {e}")
 

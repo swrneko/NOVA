@@ -32,6 +32,7 @@ class AudioIO:
         # Очередь и поток для воспроизведения звука от сервера
         self.play_queue = queue.Queue()
         self.is_playing = True
+        self.stop_signal = False
         self.play_thread = threading.Thread(target=self._play_loop, daemon=True)
         self.play_thread.start()
 
@@ -125,44 +126,52 @@ class AudioIO:
 
     def abort_playback(self):
         """Очищает очередь воспроизведения и мгновенно останавливает текущий буфер."""
+        self.stop_signal = True
         while not self.play_queue.empty():
             try:
                 self.play_queue.get_nowait()
             except queue.Empty:
                 break
-        
-        # Мгновенно тушим воспроизведение текущего чанка
-        if hasattr(self, 'play_stream') and self.play_stream:
-            try:
-                self.play_stream.stop()
-                self.play_stream.start() # Перезапускаем для будущих фраз
-            except Exception as e:
-                pass
 
     def _play_loop(self):
         """Фоновый поток, который непрерывно читает очередь и проигрывает звук."""
         device = self.output_device
         try:
-            self.play_stream = sd.OutputStream(device=device, samplerate=SPK_SAMPLE_RATE, channels=SPK_CHANNELS, dtype=SPK_DTYPE)
+            stream = sd.OutputStream(device=device, samplerate=SPK_SAMPLE_RATE, channels=SPK_CHANNELS, dtype=SPK_DTYPE)
         except Exception as e:
             print(f"Failed to open selected output device {device}: {e}. Falling back to default output.")
             try:
-                self.play_stream = sd.OutputStream(device=None, samplerate=SPK_SAMPLE_RATE, channels=SPK_CHANNELS, dtype=SPK_DTYPE)
+                stream = sd.OutputStream(device=None, samplerate=SPK_SAMPLE_RATE, channels=SPK_CHANNELS, dtype=SPK_DTYPE)
             except Exception as e2:
                 print(f"Failed to open default output stream: {e2}")
                 return
 
-        with self.play_stream:
+        # Задаем небольшой размер чанка записи на звуковую карту (1024 сэмплов ≈ 46 мс)
+        # Это гарантирует, что при установке stop_signal звук прервется мгновенно!
+        PLAY_CHUNK_SIZE = 1024
+
+        with stream:
             while self.is_playing:
                 try:
                     # Блокируемся, пока не придут новые байты
                     audio_np = self.play_queue.get(timeout=0.5)
-                    self.play_stream.write(audio_np)
+                    
+                    self.stop_signal = False
+                    offset = 0
+                    
+                    # Записываем массив частями, проверяя флаг отмены на каждой итерации
+                    while offset < len(audio_np) and self.is_playing:
+                        if self.stop_signal:
+                            break
+                        
+                        chunk = audio_np[offset : offset + PLAY_CHUNK_SIZE]
+                        stream.write(chunk)
+                        offset += PLAY_CHUNK_SIZE
+                        
                 except queue.Empty:
                     continue
                 except Exception as e:
-                    # Ошибка нормальна, если поток был принудительно остановлен через stop()
-                    pass
+                    print(f"Playback error: {e}")
 
     def stop(self):
         """Очистка ресурсов при выходе."""
