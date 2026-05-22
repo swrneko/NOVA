@@ -170,7 +170,7 @@ class MainScreen(Screen):
                 
                 # Выводим сообщение об успешном входе в чат
                 self.message_list.mount(MessageBubble("System", f"[bold green]Connected as {net.username}! Press [SPACE] to start/stop voice recording.[/bold green]"))
-                self.message_list.scroll_to_end()
+                self.message_list.scroll_end()
                 
                 # Подключаемся к WebSocket
                 self.connect_ws()
@@ -250,12 +250,12 @@ class MainScreen(Screen):
         if t == "info":
             bubble = MessageBubble("System", f"[yellow]Info: {data.get('message')}[/yellow]")
             self.message_list.mount(bubble)
-            self.message_list.scroll_to_end()
+            self.message_list.scroll_end()
         elif t == "text_user":
             # Добавляем сообщение пользователя
             bubble = MessageBubble("You", data.get("text"))
             self.message_list.mount(bubble)
-            self.message_list.scroll_to_end()
+            self.message_list.scroll_end()
         elif t == "text_chunk":
             # Накапливаем стриминг-чанки от LLM прямо в бабл чата!
             chunk = data.get("text", "")
@@ -268,7 +268,7 @@ class MainScreen(Screen):
             else:
                 self.current_bubble.update_text(self.current_response_text)
                 
-            self.message_list.scroll_to_end()
+            self.message_list.scroll_end()
         elif t == "done":
             # Завершили стриминг, сбрасываем указатели
             self.current_response_text = ""
@@ -302,7 +302,7 @@ class MainScreen(Screen):
         except Exception as e:
             bubble = MessageBubble("System", f"[red]Error while stopping/sending audio: {e}[/red]")
             self.message_list.mount(bubble)
-            self.message_list.scroll_to_end()
+            self.message_list.scroll_end()
         
         def reset_status():
             self.status_bar.update("READY. Press [SPACE] to start/stop recording.")
