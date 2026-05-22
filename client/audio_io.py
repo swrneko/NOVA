@@ -123,6 +123,14 @@ class AudioIO:
             audio_np = np.frombuffer(audio_bytes, dtype=np.int16)
             self.play_queue.put(audio_np)
 
+    def abort_playback(self):
+        """Очищает очередь воспроизведения для мгновенного затихания."""
+        while not self.play_queue.empty():
+            try:
+                self.play_queue.get_nowait()
+            except queue.Empty:
+                break
+
     def _play_loop(self):
         """Фоновый поток, который непрерывно читает очередь и проигрывает звук."""
         device = self.output_device

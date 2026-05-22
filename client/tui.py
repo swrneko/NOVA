@@ -280,8 +280,16 @@ class MainScreen(Screen):
 
     def start_recording(self) -> None:
         audio: AudioIO = self.app.audio # type: ignore
+        net: NetworkClient = self.app.net # type: ignore
         self.is_recording = True
         self.status_bar.update("[bold red]RECORDING... (Press SPACE again to stop and send)[/bold red]")
+        
+        # Прерываем текущую озвучку на клиенте
+        audio.abort_playback()
+        
+        # Посылаем сигнал прерывания (abort) на сервер
+        self.run_worker(net.send_abort())
+        
         audio.start_recording()
 
     async def stop_recording(self) -> None:

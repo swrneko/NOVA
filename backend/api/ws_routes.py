@@ -82,30 +82,63 @@ async def websocket_chat(websocket: WebSocket, db: Session = Depends(get_db)):
     for msg in db_history:
         history.append({"role": msg.role, "content": msg.content})
 
+    active_task = None
+
     try:
         while True:
-            # 1. Ждем байты аудио (STT) от клиента
-            audio_bytes = await websocket.receive_bytes()
-            print(f"[WS] Получено аудио от клиента: {len(audio_bytes)} байт")
+            # Ждем любое сообщение от клиента (текст или бинарные данные)
+            message = await websocket.receive()
             
-            # 2. Переводим звук в текст (в отдельном потоке, чтобы не блочить Event Loop!)
-            user_text = await asyncio.to_thread(stt_engine.transcribe_audio_bytes, audio_bytes)
+            # 1. Если пришел сигнал отмены (abort) в текстовом виде:
+            if "text" in message:
+                try:
+                    data = json.loads(message["text"])
+                    if data.get("type") == "abort":
+                        if active_task and not active_task.done():
+                            active_task.cancel()
+                            print("[WS] Генерация предыдущего ответа прервана пользователем!")
+                except Exception as e:
+                    print(f"Error parsing text WS message: {e}")
             
-            if not user_text:
-                await websocket.send_json({"type": "info", "message": "Голос не распознан"})
-                continue
+            # 2. Если пришли аудио-байты (новый вопрос):
+            elif "bytes" in message:
+                audio_bytes = message["bytes"]
                 
-            # Сохраняем в БД и добавляем в контекст
-            new_msg = Message(user_id=user.id, role="user", content=user_text)
-            db.add(new_msg)
-            db.commit()
-            history.append({"role": "user", "content": user_text})
-            
-            # Оповещаем UI
-            await websocket.send_json({"type": "text_user", "text": user_text})
+                # Если сейчас идет генерация старого ответа, ПРЕРЫВАЕМ её!
+                if active_task and not active_task.done():
+                    active_task.cancel()
+                    print("[WS] Предыдущая генерация прервана перед обработкой нового запроса!")
+                
+                # Запускаем обработку нового аудио в фоне в отдельной задаче asyncio!
+                # Благодаря этому, основной цикл while True свободен и может мгновенно принять
+                # сигнал 'abort' или новые байты, пока текущая задача обрабатывается!
+                async def handle_request():
+                    try:
+                        print(f"[WS] Начало обработки аудио: {len(audio_bytes)} байт")
+                        # Переводим звук в текст
+                        user_text = await asyncio.to_thread(stt_engine.transcribe_audio_bytes, audio_bytes)
+                        
+                        if not user_text:
+                            await websocket.send_json({"type": "info", "message": "Голос не распознан"})
+                            return
+                            
+                        # Сохраняем в БД и добавляем в контекст
+                        new_msg = Message(user_id=user.id, role="user", content=user_text)
+                        db.add(new_msg)
+                        db.commit()
+                        history.append({"role": "user", "content": user_text})
+                        
+                        # Оповещаем UI
+                        await websocket.send_json({"type": "text_user", "text": user_text})
 
-            # 3. Обрабатываем ответ через LLM + Tools
-            await process_llm_and_tts(websocket, history, user, db)
+                        # Обрабатываем ответ через LLM + Tools
+                        await process_llm_and_tts(websocket, history, user, db)
+                    except asyncio.CancelledError:
+                        print("[WS] Задача генерации была успешно прервана.")
+                    except Exception as e:
+                        print(f"Error in handle_request task: {e}")
+
+                active_task = asyncio.create_task(handle_request())
 
     except WebSocketDisconnect:
         print("[WS] Клиент отключился")

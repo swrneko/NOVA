@@ -68,3 +68,10 @@ class NetworkClient:
                 await self.ws.send(audio_bytes)
             except Exception as e:
                 print(f"Error sending audio: {e}")
+
+    async def send_abort(self):
+        if self.ws:
+            try:
+                await self.ws.send(json.dumps({"type": "abort"}))
+            except Exception as e:
+                print(f"Error sending abort: {e}")
