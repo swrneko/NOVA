@@ -42,15 +42,10 @@ class MainScreen(Screen):
         out_options = [(item["name"], item["id"]) for item in outputs]
 
         with TabbedContent(id="tabs"):
-            # Вкладка 1: Чат
+            # Вкладка 1: Чат (без динамических невидимых контейнеров, всегда отображается)
             with TabPane("Chat 🌌", id="tab-chat"):
-                with Vertical(id="chat-unauthenticated-pane"):
-                    yield Label("🌌 NOVA - Neural Operational Voice Assistant", id="chat-welcome-title")
-                    yield Label("Please register or log in under the Accounts tab first to start chatting.", id="chat-welcome-subtitle")
-                
-                with Vertical(id="chat-authenticated-pane"):
-                    yield VerticalScroll(id="message-list")
-                    yield Static("READY. Press [SPACE] to start/stop recording.", id="status-bar")
+                yield VerticalScroll(id="message-list")
+                yield Static("READY. Press [SPACE] to start/stop recording.", id="status-bar")
 
             # Вкладка 2: Аккаунты
             with TabPane("Accounts 👤", id="tab-accounts"):
@@ -100,9 +95,11 @@ class MainScreen(Screen):
         self.status_bar = self.query_one("#status-bar", Static)
         
         # Настройка видимости блоков авторизации
-        self.query_one("#chat-authenticated-pane").display = False
         self.query_one("#acc-2fa-pane").display = False
         self.query_one("#acc-authenticated-pane").display = False
+        
+        # Выводим приветственное сообщение в чат
+        self.message_list.mount(MessageBubble("System", "[bold yellow]Welcome to NOVA![/bold yellow]\nPlease register or log in under the [bold cyan]Accounts[/bold cyan] tab first to start chatting."))
         
         # Переменные состояния
         self.is_recording = False
@@ -171,9 +168,9 @@ class MainScreen(Screen):
                 self.query_one("#acc-authenticated-pane").display = True
                 self.query_one("#acc-profile-info").update(f"Logged in as: [bold cyan]{net.username}[/bold cyan]")
                 
-                # Разблокируем чат
-                self.query_one("#chat-unauthenticated-pane").display = False
-                self.query_one("#chat-authenticated-pane").display = True
+                # Выводим сообщение об успешном входе в чат
+                self.message_list.mount(MessageBubble("System", f"[bold green]Connected as {net.username}! Press [SPACE] to start/stop voice recording.[/bold green]"))
+                self.message_list.scroll_to_end()
                 
                 # Подключаемся к WebSocket
                 self.connect_ws()
@@ -201,12 +198,9 @@ class MainScreen(Screen):
             self.query_one("#acc-password").value = ""
             self.query_one("#acc-status").update("")
             
-            # Локаут чата
-            self.query_one("#chat-authenticated-pane").display = False
-            self.query_one("#chat-unauthenticated-pane").display = True
-            
-            # Очищаем историю чата на экране
+            # Очищаем историю чата на экране и выводим приветствие
             self.message_list.query(MessageBubble).remove()
+            self.message_list.mount(MessageBubble("System", "[bold yellow]Welcome to NOVA![/bold yellow]\nPlease register or log in under the [bold cyan]Accounts[/bold cyan] tab first to start chatting."))
 
         # --- ПРИМЕНЕНИЕ НАСТРОЕК АУДИО ---
         elif event.button.id == "btn-apply-audio":
@@ -225,9 +219,13 @@ class MainScreen(Screen):
             status.update("[green]Audio settings applied successfully![/green]")
 
     def on_key(self, event: Key) -> None:
-        # Проверяем, что активна вкладка чата и пользователь авторизован
-        if self.tabs.active == "tab-chat" and self.query_one("#chat-authenticated-pane").display:
+        if self.tabs.active == "tab-chat":
+            net: NetworkClient = self.app.net # type: ignore
             if event.key == "space":
+                if not net.token:
+                    self.status_bar.update("[bold red]Please log in under the Accounts tab first![/bold red]")
+                    return
+                
                 current_time = time.time()
                 if current_time - self.last_toggle_time < 0.8:
                     return
