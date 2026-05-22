@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from backend.api.routes import router as api_router
+from backend.api.ws_routes import router as ws_router
 from backend.database.db import init_db
 
 # Инициализируем БД
@@ -7,8 +8,9 @@ init_db()
 
 app = FastAPI(title="NOVA API")
 
-# Подключаем роуты из api/routes.py
+# Подключаем роуты
 app.include_router(api_router, prefix="/api")
+app.include_router(ws_router) # Без префикса, чтобы путь был /ws/chat
 
 @app.get("/")
 def read_root():

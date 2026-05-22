@@ -1,16 +1,16 @@
 import torch
 import numpy as np
-import sounddevice as sd
 from faster_whisper import WhisperModel
 from silero_vad import load_silero_vad
-from collections import deque
+
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from config import *
 
 MODEL_SIZE = "large-v3-turbo"
 SAMPLE_RATE = 16000
 VAD_TRESHOLD = 0.75
-CHUNK_SIZE = 512
-MAX_SILENCE_CHUNKS = 30
-PRE_ROLL_SEC = 0.5
 
 class STT():
     def __init__(self):
@@ -30,62 +30,32 @@ class STT():
 
         self.sample_rate = SAMPLE_RATE
 
-        self.pre_roll = deque(maxlen=int(SAMPLE_RATE/CHUNK_SIZE * 0.5))
+    def transcribe_audio_bytes(self, audio_bytes: bytes) -> str:
+        """Принимает сырые аудио-байты от клиента, проверяет VAD и транскрибирует"""
+        if not audio_bytes:
+            return ""
 
+        # Конвертируем байты (предполагается float32 16kHz) в numpy массив
+        audio_np = np.frombuffer(audio_bytes, dtype=np.float32)
+        
+        # Проверяем VAD (есть ли голос вообще)
+        # silero ожидает torch tensor
+        audio_tensor = torch.from_numpy(audio_np)
+        speech_prob = self.vad(audio_tensor, self.sample_rate).item()
 
-    def listen(self, tts: None):
-        audio_buffer = []
-        is_speaking = False
-        silence_chunks = 0
+        if speech_prob < VAD_TRESHOLD:
+             return ""
 
-        self.pre_roll.clear()
+        # Транскрибируем
+        segments, _ = self.stt.transcribe(
+            audio_np,
+            language='ru',
+            initial_prompt="Александр Егоров, Нанасаки, Аи, время, сколько, включи, выключи.",
+            vad_filter=True,
+            no_speech_threshold=VAD_TRESHOLD
+        )
 
-        print("[Listen...]\n")
-
-        with sd.InputStream(samplerate=self.sample_rate, channels=1, dtype="float32") as stream:
-            while True:
-                chunk, _ = stream.read(CHUNK_SIZE)
-                chunk = chunk.flatten()
-
-                speech_probe = self.vad(torch.from_numpy(chunk), SAMPLE_RATE).item()
-
-                if speech_probe > VAD_TRESHOLD:
-                    if not is_speaking:
-                        is_speaking = True
-                        print("[VOICE TARGETED!]")
-
-                        audio_buffer.extend(list(self.pre_roll))
-
-                    if tts:
-                        tts.abort()
-
-                    audio_buffer.append(chunk)
-                    silence_chunks = 0
-
-                elif is_speaking:
-                    silence_chunks += 1
-
-                    if silence_chunks > MAX_SILENCE_CHUNKS:
-                        print("[VOID]")
-                        break
-
-                else:
-                    self.pre_roll.append(chunk)
-
-        if audio_buffer:
-            full_audio = np.concatenate(audio_buffer)
-
-            segments, _ = self.stt.transcribe(
-                full_audio,
-                language='ru',
-                initial_prompt="Александр Егоров, Нанасаки, Аи, время, сколько, включи, выключи.",
-                vad_filter=True,
-                no_speech_threshold=VAD_TRESHOLD
-            )
-
-            text = "".join([s.text for s in segments]).strip()
-
-            print(f"[TRANSCRIBED RESULT: {text}]")
-
+        text = "".join([s.text for s in segments]).strip()
+        print(f"[TRANSCRIBED RESULT: {text}]")
         return text
 
