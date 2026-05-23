@@ -18,7 +18,7 @@ class STT():
         # Указываем явно директорию кэша в домашней папке пользователя, чтобы он не перекачивал модель
         cache_dir = os.path.join(os.path.expanduser("~"), ".cache", "huggingface", "hub")
         try:
-            self.stt = WhisperModel(MODEL_SIZE, device="cuda", compute_type="float16", download_root=cache_dir)
+            self.stt = WhisperModel(MODEL_SIZE, device="cpu", compute_type="int8", download_root=cache_dir)
         except Exception as e:
             print("Whisper not loaded!")
             print(f"Error: {e}")

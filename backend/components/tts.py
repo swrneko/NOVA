@@ -14,7 +14,7 @@ class TTS:
             self.tts = p.PiperVoice.load(
                 model_path=PIPER_MODEL_PAHT,
                 config_path=PIPER_CONFIG_PATH,
-                use_cuda=True # CPU для стабильности, но если есть CUDA - оставляем True
+                use_cuda=False # Установлено в False, так как на ноутбуке нет NVIDIA GPU
             )
             self.syn_config = p.SynthesisConfig(
                 volume=1.0,

@@ -1,4 +1,4 @@
-from passlib.context import CryptContext
+import bcrypt
 import pyotp
 import jwt
 import datetime
@@ -10,13 +10,17 @@ SECRET_KEY = "super_secret_nova_key_for_university_project"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 дней
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        # bcrypt.checkpw ожидает байты
+        return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    except Exception:
+        return False
 
 def get_password_hash(password):
-    return pwd_context.hash(password)
+    # gensalt генерирует соль, hashpw хэширует и возвращает байты, которые мы декодируем в строку
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
 
 def generate_totp_secret():
     """Генерирует секретный ключ для приложения (Aegis/Google Auth)"""

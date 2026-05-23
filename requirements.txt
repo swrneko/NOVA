@@ -13,5 +13,7 @@ sounddevice
 numpy
 faster-whisper
 silero-vad
-llama-cpp-python
+openai
 paho-mqtt
+qrcode
+librosa

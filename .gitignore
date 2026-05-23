@@ -17,3 +17,6 @@ env/
 # IDE files
 .vscode/
 .idea/
+
+# Local model weights
+piper-models/

@@ -1,6 +1,9 @@
 import re
 
-LLM_MODEL_PATH = "/home/swrneko/HDD/Qwen3-8B-Q4_K_M.gguf"
+# io.net Intelligence API (OpenAI-совместимый)
+OPENAI_API_KEY = "io-v2-eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJvd25lciI6ImU4OGE2MDE0LTVhMWQtNGY2OS05M2EyLTRkOGQ5NTMxYTE5NSIsImV4cCI6NDkzMzExNjg4Nn0.VJBZFH0qaDqA3i_onuxqlfrNyAxHzksLQ_jJzWGx6e5GWQiHKt802NEWCyPDxw3pI6cTire4gh8zokAIDrsH0A"
+OPENAI_BASE_URL = "https://api.intelligence.io.solutions/api/v1/"
+OPENAI_MODEL_NAME = "openai/gpt-oss-20b"
 
 SYSTEM_PROMTP = """
 Отвечай как будто бы ты женщина (от женского имени).
@@ -62,8 +65,8 @@ LLM_GPU_LAYERS = -1
 TEMPERATUE = 0.8
 
 # PIPER CONFIG
-PIPER_MODEL_PAHT = "/home/swrneko/HDD/piper-tts-models/ru_RU-irina-medium.onnx"
-PIPER_CONFIG_PATH = "/home/swrneko/HDD/piper-tts-models/ru_RU-irina-medium.onnx.json"
+PIPER_MODEL_PAHT = "/home/swrneko/Documents/NOVA/piper-models/ru_RU-irina-medium.onnx"
+PIPER_CONFIG_PATH = "/home/swrneko/Documents/NOVA/piper-models/ru_RU-irina-medium.onnx.json"
 SAMPLE_RATE = 22050
 
 SENTENCE_END_RE = re.compile(r'[.!?…]+["\']?\s*$')

@@ -1,4 +1,4 @@
-from llama_cpp import Llama
+from openai import OpenAI
 import sys
 import os
 
@@ -8,30 +8,39 @@ from config import *
 class LLM():
     def __init__(self):
         '''init class'''
-        print("Load model...")
-        # Load model
+        print(f"Подключение к io.net Intelligence API: {OPENAI_BASE_URL}")
         try:
-            self.llm = Llama(
-                model_path=LLM_MODEL_PATH,
-                n_ctx=LLM_CONTEXT_LENTH,
-                n_gpu_layers=LLM_GPU_LAYERS,
-                verbose=False,
+            self.client = OpenAI(
+                api_key=OPENAI_API_KEY,
+                base_url=OPENAI_BASE_URL,
             )
-            print("LLM model sucsessfully loaded!")
+            self.model = OPENAI_MODEL_NAME
+            print(f"LLM API успешно инициализирован (модель: {self.model})")
         except Exception as e:
-            print("MODEL NOT LOADED!")
-            print(f"Error when loading llm model:{e}")
-            self.llm = None
-        
+            print("ОШИБКА: Не удалось инициализировать OpenAI клиент!")
+            print(f"Error: {e}")
+            self.client = None
+            self.model = None
+
     def llmGenerateStream(self, history: list):
-        if not self.llm:
-            yield {"choices": [{"delta": {"content": "Ошибка: Модель LLM не загружена."}}]}
+        if not self.client:
+            yield {"choices": [{"delta": {"content": "Ошибка: LLM клиент не инициализирован."}}]}
             return
 
-        stream = self.llm.create_chat_completion(
-            messages=history,
-            stream=True
-        )
+        try:
+            stream = self.client.chat.completions.create(
+                model=self.model,
+                messages=history,
+                stream=True,
+                temperature=TEMPERATUE,
+                max_completion_tokens=LLM_CONTEXT_LENTH,
+            )
 
-        for chunk in stream:
-            yield chunk
+            for chunk in stream:
+                # chunk: ChatCompletionChunk
+                # конвертируем в dict для обратной совместимости с ws_routes.py
+                yield chunk.model_dump()
+
+        except Exception as e:
+            print(f"Ошибка при запросе к LLM API: {e}")
+            yield {"choices": [{"delta": {"content": f"[Ошибка API: {e}]"}}]}
